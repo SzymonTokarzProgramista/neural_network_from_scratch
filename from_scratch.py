@@ -10,17 +10,45 @@ y_train_oh = np.eye(10)[y_train_raw]
 y_test_oh = np.eye(10)[y_test_raw]
 
 input_size, hidden_size, output_size = 784, 64, 10
-np.random.seed(42)
 W1 = np.random.randn(input_size, hidden_size) * np.sqrt(1. / input_size)
 b1 = np.zeros((1, hidden_size))
 W2 = np.random.randn(hidden_size, output_size) * np.sqrt(1. / hidden_size)
 b2 = np.zeros((1, output_size))
 
-def sigmoid(x):
-    return 1 / (1 + np.exp(-x))
+# Hiperparametry (zmieniane przez GUI)
+hyperparams = {
+    'lr': 0.1,
+    'batch_size': 64,
+    'dropout': 0.3,
+    'activation': 'sigmoid'
+}
 
-def sigmoid_derivative(x):
-    return x * (1 - x)
+def set_numpy_hyperparams(params):
+    global hyperparams
+    hyperparams.update(params)
+
+def activate(x):
+    act = hyperparams['activation']
+    if act == 'sigmoid':
+        return 1 / (1 + np.exp(-x))
+    elif act == 'tanh':
+        return np.tanh(x)
+    elif act == 'relu':
+        return np.maximum(0, x)
+    else:
+        return x
+
+def activate_derivative(x):
+    act = hyperparams['activation']
+    if act == 'sigmoid':
+        s = 1 / (1 + np.exp(-x))
+        return s * (1 - s)
+    elif act == 'tanh':
+        return 1 - np.tanh(x) ** 2
+    elif act == 'relu':
+        return (x > 0).astype(float)
+    else:
+        return np.ones_like(x)
 
 def softmax(x):
     e_x = np.exp(x - np.max(x, axis=1, keepdims=True))
@@ -42,20 +70,19 @@ def apply_dropout(x, rate):
     return x * mask, mask
 
 def train_numpy_live(epoch):
-    global W1, b1, W2, b2, X_train, y_train_oh, X_test, y_test_oh
+    global W1, b1, W2, b2
 
-    batch_size = 64
-    dropout_rate = 0.3
-    lr = 0.1
+    lr = hyperparams['lr']
+    batch_size = hyperparams['batch_size']
+    dropout_rate = hyperparams['dropout']
 
     idx = np.random.permutation(len(X_train))
     X_batch = X_train[idx][:batch_size]
     y_batch = y_train_oh[idx][:batch_size]
 
     z1 = np.dot(X_batch, W1) + b1
-    a1 = sigmoid(z1)
-    a1, mask = apply_dropout(a1, dropout_rate) if epoch < 10 else (a1, np.ones_like(a1))  # tylko w treningu
-
+    a1 = activate(z1)
+    a1, mask = apply_dropout(a1, dropout_rate)
     z2 = np.dot(a1, W2) + b2
     a2 = softmax(z2)
 
@@ -63,7 +90,7 @@ def train_numpy_live(epoch):
     dW2 = np.dot(a1.T, dz2)
     db2 = np.sum(dz2, axis=0, keepdims=True)
 
-    dz1 = np.dot(dz2, W2.T) * sigmoid_derivative(a1) #* mask
+    dz1 = np.dot(dz2, W2.T) * activate_derivative(z1) * mask
     dW1 = np.dot(X_batch.T, dz1)
     db1 = np.sum(dz1, axis=0, keepdims=True)
 
@@ -74,7 +101,7 @@ def train_numpy_live(epoch):
 
     # Ewaluacja
     z1 = np.dot(X_test, W1) + b1
-    a1 = sigmoid(z1)
+    a1 = activate(z1)
     z2 = np.dot(a1, W2) + b2
     a2 = softmax(z2)
 

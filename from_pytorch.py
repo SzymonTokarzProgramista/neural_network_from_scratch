@@ -4,11 +4,20 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torchvision import datasets, transforms
 
-# Dane i konfiguracja
+# Konfiguracja
 batch_size = 64
 lr = 0.1
-epochs = 10
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+hyperparams = {
+    'lr': 0.1,
+    'batch_size': 64,
+    'dropout': 0.3,
+    'activation': 'sigmoid'
+}
+
+def set_torch_hyperparams(params):
+    global hyperparams
+    hyperparams.update(params)
 
 transform = transforms.Compose([
     transforms.ToTensor(),
@@ -20,29 +29,33 @@ test_dataset = datasets.MNIST(root='./data', train=False, download=True, transfo
 train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=1000, shuffle=False)
 
-# Model
 class Net(nn.Module):
     def __init__(self):
         super().__init__()
         self.fc1 = nn.Linear(28*28, 64)
-        self.drop = nn.Dropout(0.3)
+        self.drop = nn.Dropout(hyperparams['dropout'])
         self.fc2 = nn.Linear(64, 10)
 
     def forward(self, x):
         x = x.view(-1, 28*28)
-        x = torch.sigmoid(self.fc1(x))
+        act = hyperparams['activation']
+        if act == 'relu':
+            x = F.relu(self.fc1(x))
+        elif act == 'tanh':
+            x = torch.tanh(self.fc1(x))
+        else:
+            x = torch.sigmoid(self.fc1(x))
         x = self.drop(x)
         x = self.fc2(x)
         return F.log_softmax(x, dim=1)
 
 model = Net().to(device)
-optimizer = torch.optim.SGD(model.parameters(), lr=lr)
+optimizer = torch.optim.SGD(model.parameters(), lr=hyperparams['lr'])
 loss_fn = nn.NLLLoss()
-
 train_iter = iter(train_loader)
 
 def train_torch_live(epoch):
-    global train_iter
+    global train_iter, model, optimizer
     model.train()
 
     try:
@@ -58,14 +71,13 @@ def train_torch_live(epoch):
     loss.backward()
     optimizer.step()
 
-    # Ewaluacja
     model.eval()
-    with torch.no_grad():
-        total_correct = 0
-        total_samples = 0
-        total_loss = 0
-        total_mse = 0
+    total_correct = 0
+    total_samples = 0
+    total_loss = 0
+    total_mse = 0
 
+    with torch.no_grad():
         for data, target in test_loader:
             data, target = data.to(device), target.to(device)
             output = model(data)
@@ -78,16 +90,7 @@ def train_torch_live(epoch):
             total_correct += (preds == target).sum().item()
             total_samples += target.size(0)
 
-            loss_val = total_loss / total_samples
-            mse_val = total_mse / total_samples
-            acc = total_correct / total_samples
-
-
-        probs = torch.exp(output)
-        one_hot = F.one_hot(target, num_classes=10).float()
-        mse_val = F.mse_loss(probs, one_hot).item()
-        loss_val = loss_fn(output, target).item()
-        preds = output.argmax(dim=1)
-        acc = (preds == target).float().mean().item()
-
+    loss_val = total_loss / total_samples
+    mse_val = total_mse / total_samples
+    acc = total_correct / total_samples
     return loss_val, mse_val, acc

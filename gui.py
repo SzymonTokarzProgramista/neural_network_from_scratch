@@ -5,8 +5,8 @@ from threading import Thread
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
-from from_scratch import train_numpy_live
-from from_pytorch import train_torch_live
+from from_scratch import train_numpy_live, set_numpy_hyperparams
+from from_pytorch import train_torch_live, set_torch_hyperparams
 
 class TrainingApp:
     def __init__(self, root):
@@ -17,11 +17,13 @@ class TrainingApp:
         self.canvas = FigureCanvasTkAgg(self.fig, master=root)
         self.canvas.get_tk_widget().pack()
 
+        self.controls_frame = tk.Frame(root)
+        self.controls_frame.pack(pady=5)
+
+        self._build_controls()
+
         self.status = tk.StringVar(value="Gotowy do treningu")
         tk.Label(root, textvariable=self.status).pack(pady=5)
-
-        self.button = ttk.Button(root, text="Start treningu", command=self.start_training)
-        self.button.pack(pady=10)
 
         self.losses_np = []
         self.losses_torch = []
@@ -29,6 +31,30 @@ class TrainingApp:
         self.mses_torch = []
         self.accs_np = []
         self.accs_torch = []
+
+    def _build_controls(self):
+        tk.Label(self.controls_frame, text="Liczba epok:").grid(row=0, column=0)
+        self.epochs_var = tk.IntVar(value=10)
+        tk.Entry(self.controls_frame, textvariable=self.epochs_var, width=5).grid(row=0, column=1)
+
+        tk.Label(self.controls_frame, text="Learning rate:").grid(row=0, column=2)
+        self.lr_var = tk.DoubleVar(value=0.1)
+        tk.Entry(self.controls_frame, textvariable=self.lr_var, width=5).grid(row=0, column=3)
+
+        tk.Label(self.controls_frame, text="Batch size:").grid(row=0, column=4)
+        self.batch_var = tk.IntVar(value=64)
+        tk.Entry(self.controls_frame, textvariable=self.batch_var, width=5).grid(row=0, column=5)
+
+        tk.Label(self.controls_frame, text="Dropout:").grid(row=0, column=6)
+        self.dropout_var = tk.DoubleVar(value=0.3)
+        tk.Entry(self.controls_frame, textvariable=self.dropout_var, width=5).grid(row=0, column=7)
+
+        tk.Label(self.controls_frame, text="Aktywacja:").grid(row=0, column=8)
+        self.act_var = tk.StringVar(value="sigmoid")
+        ttk.Combobox(self.controls_frame, textvariable=self.act_var, values=["sigmoid", "tanh", "relu"], width=7).grid(row=0, column=9)
+
+        self.button = ttk.Button(self.controls_frame, text="Start treningu", command=self.start_training)
+        self.button.grid(row=0, column=10, padx=10)
 
     def start_training(self):
         self.button.config(state=tk.DISABLED)
@@ -41,11 +67,20 @@ class TrainingApp:
         self.accs_np.clear()
         self.accs_torch.clear()
 
-        Thread(target=self.train_models).start()
+        # Przekazanie hiperparametrów
+        params = {
+            'epochs': self.epochs_var.get(),
+            'lr': self.lr_var.get(),
+            'batch_size': self.batch_var.get(),
+            'dropout': self.dropout_var.get(),
+            'activation': self.act_var.get(),
+        }
+        set_numpy_hyperparams(params)
+        set_torch_hyperparams(params)
 
-    def train_models(self):
-        epochs = 10
+        Thread(target=self.train_models, args=(params['epochs'],)).start()
 
+    def train_models(self, epochs):
         for epoch in range(epochs):
             loss_np, mse_np, acc_np = train_numpy_live(epoch)
             loss_torch, mse_torch, acc_torch = train_torch_live(epoch)
