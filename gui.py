@@ -11,7 +11,7 @@ from from_pytorch import train_torch_live, set_torch_hyperparams
 class TrainingApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Wizualizacja procesu uczenia - Live")
+        self.root.title("Wizualizacja procesu uczenia")
 
         self.fig, self.axs = plt.subplots(1, 3, figsize=(15, 4))
         self.canvas = FigureCanvasTkAgg(self.fig, master=root)
